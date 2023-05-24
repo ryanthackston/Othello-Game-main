@@ -195,6 +195,24 @@ isValidPiece p b (i, j) = isMoveInBounds (i, j) && go p r (i, j)
     go p r (i, j)  = go p (drop 1 r) (i, j-1)
 
 -- Validate moves the piece can go. Type in N,NE,E,SE,S,SW,W,NW ... To Do...
+-- create seperate cases for N, NE, etc.  N (x doesn't chnage, y only increases)
+-- NE (when x increases, y increases)
+-- check if piece in that direction is an opposing piece, recursively check in direction that piece
+  -- is opposing piece until reaching Empty, Player piece is in way (Try again), or move is out of bounds (try again)
+
+data Direction = N | NE | E | SE | S | SW | W | NW deriving(Show, Eq)
+-- ismoveInBounds && checkOppPlayer && checkDirection (Checks for empty, oppPlayer recursively, or samePlayer)
+
+-- Need function to check opposing player is next player piece in specified direction 
+-- Need function to check the player based on coordinates
+
+checkDirection :: Player -> Board -> Move -> Direction -> Bool
+checkDirection p (i,j) d = (isValidPiece p b (i,j)) && (go p (i,j) d) 
+where
+  go :: Player -> Move -> Direction -> Bool
+  go = case d of
+    N = if (i, j+1) == (switchPlayer p) then checkDirection p (i,j+1) N elsif (i, j+1) == p then False elseif (i, j+1) == Empty then True
+
 isValidMove :: Board -> Move -> Bool
 isValidMove b (i, j) = isMoveInBounds (i, j) && go r (i, j)
   where
