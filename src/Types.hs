@@ -3,6 +3,7 @@ module Types where
 import Data.Char (toUpper, ord)
 import Data.List (intercalate, transpose)
 import Control.Concurrent (yield)
+import Data.Char (isAlpha)
 
 _SIZE_ :: Int
 _SIZE_ = 8
@@ -65,12 +66,6 @@ showSquare  Empty = "_"
 
 ------------------------------
 
--- Q#01
-
-promptPlayer :: Player -> String
-promptPlayer Empty = "No player's turn"
-promptPlayer p = concat ["Player ", show p, "'s turn: enter a row and column position " ]
-
 -- Q#02
 _RANGE_ ::  [Int]
 _RANGE_ = [0 .. (_SIZE_ - 1)]
@@ -128,21 +123,7 @@ indexRowStrings []  = []
 indexRowStrings s = zip ['A'.. ] s
 
 -- *** Assignment 2-2 *** --
-
--- Q#08
-isMoveInBounds :: Move -> Bool
-isMoveInBounds (x, y) = checkX && checkY
-  where
-    checkX = (x >= 0) && (x < _SIZE_)
-    checkY = (y >= 0) && (y < _SIZE_)
-
 -- Q#09
-
-stringToMove :: String -> Move
-stringToMove [r, c] = (convertRowIndex r - 1, readDigit c)
-stringToMove [r, c] = (readDigit r,  readDigit c)
-stringToMove [r, c] = ( ((convertRowIndex r) - 1), ((convertRowIndex c) - 1) )
-stringToMove _      = _INVALID_MOVE_
 
 ------------------------------
 
@@ -183,3 +164,55 @@ printBoard b = putStrLn $ formatBoard b
 promptPlayer :: Player -> String
 promptPlayer Empty = concat ["No player's turn" ]
 promptPlayer p = concat ["Player ", show(p), "'s turn: enter a row and column position " ]
+
+------------------------------
+
+-- Select a piece with Coordinates
+
+stringToMove :: String -> Move
+stringToMove [r, c]
+  | isAlpha r && isDigit c = (convertRowIndex r - 1, readDigit c)
+  | isDigit r && isDigit c = (readDigit r,  readDigit c)
+  | isAlpha r && isAlpha c = ( ((convertRowIndex r) - 1), ((convertRowIndex c) - 1) )
+  | isDigit r && isAlpha c = ( readDigit r, ((convertRowIndex c) - 1) )
+  | otherwise              = _INVALID_MOVE_
+
+isMoveInBounds :: Move -> Bool
+isMoveInBounds (x, y) = checkX && checkY
+  where
+    checkX = (x >= 0) && (x < _SIZE_)
+    checkY = (y >= 0) && (y < _SIZE_)
+
+isValidPiece :: Player -> Board -> Move -> Bool
+isValidPiece p b (i, j) = isMoveInBounds (i, j) && go p r (i, j)
+  where
+    go :: Player -> [Square] -> Move -> Bool
+    -- calls on the specific row
+    r =  head( drop i b)
+    -- if the current column is Empty then it is a valid move
+    go p r (i, 0) = head r == p
+    -- recursively drops columns until the called on column is selected
+    go p r (i, j)  = go p (drop 1 r) (i, j-1)
+
+-- Validate moves the piece can go. Type in N,NE,E,SE,S,SW,W,NW ... To Do...
+isValidMove :: Board -> Move -> Bool
+isValidMove b (i, j) = isMoveInBounds (i, j) && go r (i, j)
+  where
+    -- calls on the specific row
+    r =  head( drop i b)
+    -- if the current column is Empty then it is a valid move
+    go  r (i, 0) = head r == Empty
+    -- recursively drops columns until the called on column is selected
+    go  r (i, j)  = go (drop 1 r) (i, j-1)
+
+
+{- getMove :: Board -> IO Move
+getMove b = getLine >>= worker . stringToMove
+    where
+        worker :: Move -> IO Move
+        worker m = if isValidMove b m
+                      then return m
+                      else putStrLn "Invalid move! Try again" >> getMove b
+ -}
+
+  
