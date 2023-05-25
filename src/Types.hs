@@ -194,24 +194,43 @@ isValidPiece p b (i, j) = isMoveInBounds (i, j) && go p r (i, j)
     -- recursively drops columns until the called on column is selected
     go p r (i, j)  = go p (drop 1 r) (i, j-1)
 
+checkSquare :: Board -> Move -> Square
+checkSquare b (r, c) = boardCoord dropR (r, c)
+  where
+    -- drops to correct row
+    dropR = head $ drop r b
+    --
+    boardCoord dropR (r, 0) = head dropR
+    -- recursively drops to correct column
+    boardCoord dropR (r, c) = boardCoord (drop 1 dropR) (r, c-1)
+
+
 -- Validate moves the piece can go. Type in N,NE,E,SE,S,SW,W,NW ... To Do...
 -- create seperate cases for N, NE, etc.  N (x doesn't chnage, y only increases)
 -- NE (when x increases, y increases)
 -- check if piece in that direction is an opposing piece, recursively check in direction that piece
   -- is opposing piece until reaching Empty, Player piece is in way (Try again), or move is out of bounds (try again)
 
-data Direction = N | NE | E | SE | S | SW | W | NW deriving(Show, Eq)
+data Direction = N | NE | E | SE | S | SW | We | NW deriving(Show, Eq)
+
+directionCoord :: Move -> [(Direction, (Int, Int))]
+directionCoord (i, j) = zipWith (,) [N, NE, E, SE, S, SW, We, NW] [(i, j+1), (i+1, j+1), (i+1, j), (i+1, j-1), (i, j-1), (i-1, j-1), (i-1, j), (i-1, j+1)]
+
+nextToOppPlayer :: Board -> Move -> [(Direction, (Int, Int))]
+
+nextToOppPlayer b m = <*> (directionCoord m) 
 -- ismoveInBounds && checkOppPlayer && checkDirection (Checks for empty, oppPlayer recursively, or samePlayer)
 
 -- Need function to check opposing player is next player piece in specified direction 
 -- Need function to check the player based on coordinates
 
-checkDirection :: Player -> Board -> Move -> Direction -> Bool
+{- checkDirection :: Player -> Board -> Move -> Direction -> Bool
 checkDirection p (i,j) d = (isValidPiece p b (i,j)) && (go p (i,j) d) 
-where
-  go :: Player -> Move -> Direction -> Bool
-  go = case d of
+  where
+    go :: Player -> Move -> Direction -> Bool
+    go = case d of
     N = if (i, j+1) == (switchPlayer p) then checkDirection p (i,j+1) N elsif (i, j+1) == p then False elseif (i, j+1) == Empty then True
+ -}
 
 isValidMove :: Board -> Move -> Bool
 isValidMove b (i, j) = isMoveInBounds (i, j) && go r (i, j)
