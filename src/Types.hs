@@ -4,6 +4,7 @@ import Data.Char (toUpper, ord)
 import Data.List (intercalate, transpose)
 import Control.Concurrent (yield)
 import Data.Char (isAlpha)
+import Data.Bifunctor (second)
 
 _SIZE_ :: Int
 _SIZE_ = 8
@@ -205,8 +206,8 @@ checkSquare b (r, c) = boardCoord dropR (r, c)
     boardCoord dropR (r, c) = boardCoord (drop 1 dropR) (r, c-1)
 
 
--- Validate moves the piece can go. Type in N,NE,E,SE,S,SW,W,NW ... To Do...
--- create seperate cases for N, NE, etc.  N (x doesn't chnage, y only increases)
+-- Validate moves the piece can go. Type in N,NE,E,SE,S,SW,W,NW
+-- create seperate cases for N, NE, etc.  N (x doesn't change, y only increases)
 -- NE (when x increases, y increases)
 -- check if piece in that direction is an opposing piece, recursively check in direction that piece
   -- is opposing piece until reaching Empty, Player piece is in way (Try again), or move is out of bounds (try again)
@@ -216,12 +217,24 @@ data Direction = N | NE | E | SE | S | SW | We | NW deriving(Show, Eq)
 directionCoord :: Move -> [(Direction, (Int, Int))]
 directionCoord (i, j) = zipWith (,) [N, NE, E, SE, S, SW, We, NW] [(i, j+1), (i+1, j+1), (i+1, j), (i+1, j-1), (i, j-1), (i-1, j-1), (i-1, j), (i-1, j+1)]
 
-nextToOppPlayer :: Board -> Move -> [(Direction, (Int, Int))]
+-- z = directionCoord (3,3)
 
-nextToOppPlayer b m = <*> (directionCoord m) 
+-- Use splitAt to take out undesireable directions
+-- use unzip to seperate the zipped variables
+
+{- nextToOppPlayer :: Board -> Move -> [(Direction, (Int, Int))]
+
+nextToOppPlayer b m = <*> (directionCoord m)  -}
 -- ismoveInBounds && checkOppPlayer && checkDirection (Checks for empty, oppPlayer recursively, or samePlayer)
 
+
 -- Need function to check opposing player is next player piece in specified direction 
+
+validDirections :: Move -> Board -> [(Direction, (Int, Int))] -> [(Direction, (Int, Int))]
+validDirections _ _ []     = []
+validDirections m b (t:ts) = if (checkSquare b (snd t)) == (switchPlayer (checkSquare b m)) then t : (validDirections m b ts) else validDirections m b ts
+
+
 -- Need function to check the player based on coordinates
 
 {- checkDirection :: Player -> Board -> Move -> Direction -> Bool
