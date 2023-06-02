@@ -28,7 +28,7 @@ data GameState = BWon | WWon | Tie | InProgress deriving Show
 checkGameState t = case t of
      BWon -> "Black  won the game!"
      WWon -> "White won the game"
-     Tie -> "The game is a tie!" 
+     Tie -> "The game is a tie!"
      InProgress -> "The game is in progress..."
 
 
@@ -39,7 +39,7 @@ type Board = [Row]
 type Move = (Int, Int)
 
 getFirstPlayer :: Bool -> Player
-getFirstPlayer bool = 
+getFirstPlayer bool =
     if bool == True  then B
     else W
 
@@ -52,7 +52,7 @@ showGameState :: GameState -> String
 showGameState gs = case gs of
     BWon            ->       "Black won the game!"
     WWon            ->       "White won the game"
-    Tie             ->       "The game is a tie!" 
+    Tie             ->       "The game is a tie!"
     InProgress      ->       "The game is in progress..."
 
 switchPlayer :: Player -> Player
@@ -103,7 +103,7 @@ _NEW_BOARD_ = [
   ]
 n = _NEW_BOARD_
 
-_TIED_BOARD_ :: Board 
+_TIED_BOARD_ :: Board
 _TIED_BOARD_ = [
     [B, B, B, W, W, W, B, W]
   , [W, W, W, B, B, W, B, B]
@@ -217,6 +217,8 @@ data Direction = N | NE | E | SE | S | SW | We | NW deriving(Show, Eq)
 directionCoord :: Move -> [(Direction, (Int, Int))]
 directionCoord (i, j) = zipWith (,) [N, NE, E, SE, S, SW, We, NW] [(i, j+1), (i+1, j+1), (i+1, j), (i+1, j-1), (i, j-1), (i-1, j-1), (i-1, j), (i-1, j+1)]
 
+idDirCoord :: [(Direction, (Int, Int))]
+idDirCoord = directionCoord (0,0)
 -- z = directionCoord (3,3)
 
 -- Use splitAt to take out undesireable directions
@@ -230,12 +232,78 @@ nextToOppPlayer b m = <*> (directionCoord m)  -}
 
 -- Need function to check opposing player is next player piece in specified direction 
 
-validDirections :: Move -> Board -> [(Direction, (Int, Int))] -> [(Direction, (Int, Int))]
+minusTuple :: (Int, Int) -> (Int, Int) -> (Int, Int)
+minusTuple (x1, y1) (x2, y2) = (x2-x1, y2-y1)
+
+addTuple :: (Int, Int) -> (Int, Int) -> (Int, Int)
+addTuple (x1, y1) (x2, y2) = (x2+x1, y2+y1)
+
+-- Useless function
+accumTuple :: Move -> (Int, Int) -> (Int, Int)
+accumTuple (x1, y1) (x2, y2) = addTuple (minusTuple (x1, y1) (x2, y2)) (x1, y1)
+
+-- second is the same as fmap or bimap. 
+-- fmap applied to the coordinates
+
+{- validDirections :: Move -> Board -> [(Direction, (Int, Int))] -> [(Direction, (Int, Int))]
 validDirections _ _ []     = []
-validDirections m b (t:ts) = if (checkSquare b (snd t)) == (switchPlayer (checkSquare b m)) then t : (validDirections m b ts) else validDirections m b ts
+validDirections m b (t:ts) = checkForEmpty m (if checkSquare b (snd t) == switchPlayer (checkSquare b m) then t : validDirections m b ts else validDirections m b ts)
+  where
+    checkForEmpty :: Move -> [(Direction, (Int, Int))] -> [(Direction, (Int, Int))]
+    checkForEmpty _ [] = []
+    checkForEmpty m (t:ts)
+      | checkSquare b ( accumTuple m (snd t)) == Empty = t : checkForEmpty m ts
+      | checkSquare b ( accumTuple m (snd t)) == checkSquare b m =  checkForEmpty m ts
+      | checkSquare b ( accumTuple m (snd t)) == switchPlayer (checkSquare b m) = (checkForEmpty (accumTuple m (snd t)) t) : (checkForEmpty m ts)
+      | otherwise = checkForEmpty m ts -}
 
+--squareDir (3,3) snd
+squareDir :: (Int, Int) -> (Int, Int) -> (Int, Int)
+squareDir _ (i, j) | i < -1 || j < -1 || i > 1  || j > 1 = _INVALID_MOVE_
+squareDir (x, y) _ | x < 0 || x > _SIZE_ - 1 || y < 0 || y > _SIZE_ - 1 = _INVALID_MOVE_
+squareDir (x,y) (i, j) = (x+i, y+j)
 
--- Need function to check the player based on coordinates
+checkNextSquare :: Board -> Move -> (Int, Int) -> [(Direction, (Int, Int))] -> Player
+checkNextSquare _ _  _  [] =   Empty
+checkNextSquare b m1 m2 (t:ts) = checkSquare b (squareDir m2 (minusTuple m1 (snd t)) )
+
+{- validDirections :: Board -> Move -> Player -> [(Direction, (Int, Int))] -> [(Direction, (Int,Int))]
+validDirections _ _ _ [] = []
+validDirections b m p (t:ts) = checkForEmpty b m m p t
+  where
+    checkForEmpty :: Board -> Move -> (Int, Int) -> Player -> (Direction, (Int, Int)) -> [(Direction, (Int, Int))]
+    checkForEmpty b m1 m2 p t
+      | checkSquare b (squareDir m2 (minusTuple m1 (snd t)) ) == Empty = t : validDirections b m p ts
+      | checkSquare b (squareDir m2 (minusTuple m1 (snd t)) ) == p = validDirections b m p ts
+      | checkSquare b (squareDir m2 (minusTuple m1 (snd t)) ) == switchPlayer p = checkForEmpty b m1 (squareDir m2 (minusTuple m1 (snd t)) ) p t : validDirections b m p ts
+      | otherwise = validDirections b m p ts -}
+
+{- validDirections :: Board -> Move -> Move -> Player -> [(Direction, (Int, Int))] -> [(Direction, (Int,Int))]
+validDirections _ _ _ _ [] = []
+validDirections b m1 m2 p (t:ts)
+      | checkSquare b (squareDir m2 (minusTuple m1 (snd t)) ) == Empty = t : validDirections b m1 m2 p ts
+      | checkSquare b (squareDir m2 (minusTuple m1 (snd t)) ) == p = validDirections b m1 m2 p ts
+      | checkSquare b (squareDir m2 (minusTuple m1 (snd t)) ) == switchPlayer p = validDirections b m1 (squareDir m2 (minusTuple m1 (snd t)) ) p t : validDirections b m1 m2 p ts
+      | otherwise = validDirections b m1 m2 p ts -}
+
+{- validDirections :: Board -> Move -> Move -> Player -> [(Direction, (Int, Int))] -> [(Direction, (Int,Int))]
+validDirections _ _ _ _ [] = []
+validDirections b m1 m2 p (t:ts) = case (checkSquare b (squareDir m2 (minusTuple m1 (snd t)) )) of
+      Empty -> t : validDirections b m1 m2 p ts
+      p -> validDirections b m1 m2 p ts
+      (switchPlayer p) -> validDirections b m1 (squareDir m2 (minusTuple m1 (snd t)) ) p t : validDirections b m1 m2 p ts
+      _ -> validDirections b m1 m2 p ts -}
+
+validDirections :: Board -> Move -> Move -> Player -> [(Direction, (Int, Int))] -> [(Direction, (Int,Int))]
+validDirections _ _ _ _ [] = []
+validDirections b m1 m2 p (t:ts)
+      | checkNextSquare b m1 m2 (t:ts) == Empty = t : validDirections b m1 m2 p ts
+      | checkNextSquare b m1 m2 (t:ts) == p = validDirections b m1 m2 p ts
+      | checkNextSquare b m1 m2 (t:ts) == switchPlayer p = validDirections b m1 (squareDir m2 (minusTuple m1 (snd t)) ) p [t]
+      | otherwise = validDirections b m1 m2 p ts
+
+-- Check for Empty Square in chosen direction
+-- checkForEmpty :: [(Direction, (Int, Int))] -> [(Direction, (Int, Int))]
 
 {- checkDirection :: Player -> Board -> Move -> Direction -> Bool
 checkDirection p (i,j) d = (isValidPiece p b (i,j)) && (go p (i,j) d) 
@@ -245,7 +313,8 @@ checkDirection p (i,j) d = (isValidPiece p b (i,j)) && (go p (i,j) d)
     N = if (i, j+1) == (switchPlayer p) then checkDirection p (i,j+1) N elsif (i, j+1) == p then False elseif (i, j+1) == Empty then True
  -}
 
-isValidMove :: Board -> Move -> Bool
+
+{- isValidMove :: Board -> Move -> Bool
 isValidMove b (i, j) = isMoveInBounds (i, j) && go r (i, j)
   where
     -- calls on the specific row
@@ -253,9 +322,10 @@ isValidMove b (i, j) = isMoveInBounds (i, j) && go r (i, j)
     -- if the current column is Empty then it is a valid move
     go  r (i, 0) = head r == Empty
     -- recursively drops columns until the called on column is selected
-    go  r (i, j)  = go (drop 1 r) (i, j-1)
+    go  r (i, j)  = go (drop 1 r) (i, j-1) -}
 
 
+-- 
 {- getMove :: Board -> IO Move
 getMove b = getLine >>= worker . stringToMove
     where
@@ -264,5 +334,3 @@ getMove b = getLine >>= worker . stringToMove
                       then return m
                       else putStrLn "Invalid move! Try again" >> getMove b
  -}
-
-  
