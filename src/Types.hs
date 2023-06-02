@@ -245,18 +245,6 @@ accumTuple (x1, y1) (x2, y2) = addTuple (minusTuple (x1, y1) (x2, y2)) (x1, y1)
 -- second is the same as fmap or bimap. 
 -- fmap applied to the coordinates
 
-{- validDirections :: Move -> Board -> [(Direction, (Int, Int))] -> [(Direction, (Int, Int))]
-validDirections _ _ []     = []
-validDirections m b (t:ts) = checkForEmpty m (if checkSquare b (snd t) == switchPlayer (checkSquare b m) then t : validDirections m b ts else validDirections m b ts)
-  where
-    checkForEmpty :: Move -> [(Direction, (Int, Int))] -> [(Direction, (Int, Int))]
-    checkForEmpty _ [] = []
-    checkForEmpty m (t:ts)
-      | checkSquare b ( accumTuple m (snd t)) == Empty = t : checkForEmpty m ts
-      | checkSquare b ( accumTuple m (snd t)) == checkSquare b m =  checkForEmpty m ts
-      | checkSquare b ( accumTuple m (snd t)) == switchPlayer (checkSquare b m) = (checkForEmpty (accumTuple m (snd t)) t) : (checkForEmpty m ts)
-      | otherwise = checkForEmpty m ts -}
-
 --squareDir (3,3) snd
 squareDir :: (Int, Int) -> (Int, Int) -> (Int, Int)
 squareDir _ (i, j) | i < -1 || j < -1 || i > 1  || j > 1 = _INVALID_MOVE_
@@ -266,33 +254,6 @@ squareDir (x,y) (i, j) = (x+i, y+j)
 checkNextSquare :: Board -> Move -> (Int, Int) -> [(Direction, (Int, Int))] -> Player
 checkNextSquare _ _  _  [] =   Empty
 checkNextSquare b m1 m2 (t:ts) = checkSquare b (squareDir m2 (minusTuple m1 (snd t)) )
-
-{- validDirections :: Board -> Move -> Player -> [(Direction, (Int, Int))] -> [(Direction, (Int,Int))]
-validDirections _ _ _ [] = []
-validDirections b m p (t:ts) = checkForEmpty b m m p t
-  where
-    checkForEmpty :: Board -> Move -> (Int, Int) -> Player -> (Direction, (Int, Int)) -> [(Direction, (Int, Int))]
-    checkForEmpty b m1 m2 p t
-      | checkSquare b (squareDir m2 (minusTuple m1 (snd t)) ) == Empty = t : validDirections b m p ts
-      | checkSquare b (squareDir m2 (minusTuple m1 (snd t)) ) == p = validDirections b m p ts
-      | checkSquare b (squareDir m2 (minusTuple m1 (snd t)) ) == switchPlayer p = checkForEmpty b m1 (squareDir m2 (minusTuple m1 (snd t)) ) p t : validDirections b m p ts
-      | otherwise = validDirections b m p ts -}
-
-{- validDirections :: Board -> Move -> Move -> Player -> [(Direction, (Int, Int))] -> [(Direction, (Int,Int))]
-validDirections _ _ _ _ [] = []
-validDirections b m1 m2 p (t:ts)
-      | checkSquare b (squareDir m2 (minusTuple m1 (snd t)) ) == Empty = t : validDirections b m1 m2 p ts
-      | checkSquare b (squareDir m2 (minusTuple m1 (snd t)) ) == p = validDirections b m1 m2 p ts
-      | checkSquare b (squareDir m2 (minusTuple m1 (snd t)) ) == switchPlayer p = validDirections b m1 (squareDir m2 (minusTuple m1 (snd t)) ) p t : validDirections b m1 m2 p ts
-      | otherwise = validDirections b m1 m2 p ts -}
-
-{- validDirections :: Board -> Move -> Move -> Player -> [(Direction, (Int, Int))] -> [(Direction, (Int,Int))]
-validDirections _ _ _ _ [] = []
-validDirections b m1 m2 p (t:ts) = case (checkSquare b (squareDir m2 (minusTuple m1 (snd t)) )) of
-      Empty -> t : validDirections b m1 m2 p ts
-      p -> validDirections b m1 m2 p ts
-      (switchPlayer p) -> validDirections b m1 (squareDir m2 (minusTuple m1 (snd t)) ) p t : validDirections b m1 m2 p ts
-      _ -> validDirections b m1 m2 p ts -}
 
 validDirections :: Board -> Move -> Move -> Player -> [(Direction, (Int, Int))] -> [(Direction, (Int,Int))]
 validDirections _ _ _ _ [] = []
@@ -312,18 +273,6 @@ checkDirection p (i,j) d = (isValidPiece p b (i,j)) && (go p (i,j) d)
     go = case d of
     N = if (i, j+1) == (switchPlayer p) then checkDirection p (i,j+1) N elsif (i, j+1) == p then False elseif (i, j+1) == Empty then True
  -}
-
-
-{- isValidMove :: Board -> Move -> Bool
-isValidMove b (i, j) = isMoveInBounds (i, j) && go r (i, j)
-  where
-    -- calls on the specific row
-    r =  head( drop i b)
-    -- if the current column is Empty then it is a valid move
-    go  r (i, 0) = head r == Empty
-    -- recursively drops columns until the called on column is selected
-    go  r (i, j)  = go (drop 1 r) (i, j-1) -}
-
 
 -- 
 {- getMove :: Board -> IO Move
