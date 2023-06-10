@@ -39,6 +39,8 @@ _EMPTY_ROW_ = replicate _SIZE_ Empty
 _EMPTY_BOARD_ :: Board
 _EMPTY_BOARD_ = replicate _SIZE_ _EMPTY_ROW_
 
+e = _EMPTY_BOARD_
+
 getFirstPlayer :: Bool -> Player
 getFirstPlayer bool
     | True  = B
@@ -189,8 +191,11 @@ checkSquare b (r, c) = boardCoord dropR (r, c)
 data Direction = N | NE | E | SE | S | SW | We | NW deriving(Show, Eq)
 
 directionCoord :: Move -> [(Direction, (Int, Int))]
-directionCoord (i, j) = zipWith (,) [S, SE, E, NE, N, NW, We, SW] [(i, j+1), (i+1, j+1), (i+1, j), (i+1, j-1), (i, j-1), (i-1, j-1), (i-1, j), (i-1, j+1)]
+directionCoord (i, j) = zipWith (,) [S, SE, E, NE, N, NW, We, SW] [(i+1, j), (i-1, j-1), (i, j+1), (i-1, j+1), (i, j-1), (i+1, j+1), (i-1, j), (i+1, j-1)]
 
+{- directionCoord :: Move -> [(Direction, (Int, Int))]
+directionCoord (i, j) = zipWith (,) [S, SE, E, NE, N, NW, We, SW] [(i+1, j), (i-1, j-1), (i, j+1), (i+1, j-1), (i, j-1), (i+1, j+1), (i-1, j), (i-1, j+1)]
+ -}
 idDirCoord :: [(Direction, (Int, Int))]
 idDirCoord = directionCoord (0,0)
 
@@ -220,16 +225,23 @@ accumTuple (x1, y1) (x2, y2) (x3, y3)= addTuple (x3, y3) (minusTuple (x1, y1) (x
 -- fmap applied to the coordinates
 
 --squareDir (3,3) snd
-squareDir :: (Int, Int) -> (Int, Int) -> (Int, Int)
-squareDir _ (i, j) | i < -1 || j < -1 || i > 1  || j > 1 = _INVALID_MOVE_
+{- squareDir :: (Int, Int) -> (Int, Int) -> (Int, Int)
+squareDir _ (i, j) | i < -1 && j < -1 && i > 1  && j > 1 = _INVALID_MOVE_
 squareDir (x, y) _ | x < 0 || x > _SIZE_ - 1 || y < 0 || y > _SIZE_ - 1 = _INVALID_MOVE_
-squareDir (x,y) (i, j) = (x+i, y+j)
+squareDir (x,y) (i, j) = (x+i, y+j) -}
+
+{- outOfBounds :: Move -> (Int, Int) -> Bool
+outOfBounds m1 m2 -}
 
 validDirections :: Board -> Move -> [(Direction, (Int, Int))] -> [(Direction, (Int, Int))]
 validDirections _ _ []     = []
 validDirections b m (t:ts) = if checkSquare b (snd t) == switchPlayer (checkSquare b m) then t : validDirections b m ts else validDirections b m ts
 
-checkNextSquare :: Board -> Move -> (Int, Int) -> (Direction, (Int, Int)) -> Player
+-- Bug with empty list here
+checkNextSquare :: Board -> Move -> (Int, Int) -> (Direction, (Int, Int)) -> Square
+checkNextSquare _ (r1,c1) (r2, c2) _ | any ((== True) . (> _SIZE_ - 1)) [r1, c1, r2, c2]  = error "Out of Bounds"
+checkNextSquare _ (r1,c1) (r2, c2) _ | any ((== True) . (< 0)) [r1, c1, r2, c2]  = error "Out of Bounds"
+checkNextSquare b m1 (r2, c2) _ | any ((== True) . (== _SIZE_ -1 )) [r2, c2]  = checkSquare b (r2, c2)
 checkNextSquare b m1 m2 t   = checkSquare b (accumTuple m1 (snd t) m2)
 
 -- Maybe Function
@@ -240,12 +252,14 @@ headDirection b m (t:ts) = head (validDirections b m (t:ts))
 accumDirection :: Move -> (Int, Int) -> (Direction, (Int, Int)) -> Move
 accumDirection m1 m2 t = accumTuple m1 (snd t) m2 
 
+-- Need to fix the exception
 validLines :: Board -> Move -> (Int, Int) -> Player -> [(Direction, (Int, Int))] -> [(Direction, (Int,Int))]
 validLines _ _  _  _ [] = []
-validLines b m1 m2 p (t:ts)
-      | checkNextSquare b m1 m2 (headDirection b m1 (t:ts)) == Empty = t : validLines b m1 m1 p ts
-      | checkNextSquare b m1 m2 (headDirection b m1 (t:ts)) == p = validLines b m1 m1 p ts
-      | checkNextSquare b m1 m2 (headDirection b m1 (t:ts)) == switchPlayer p = validLines b m1 (accumTuple m1 (snd t) m2 ) p (t:ts)
+validLines b m1 (r2, c2) p (t:ts) | any ((== True) . (> _SIZE_ - 1)) [r2, c2] ||  any ((== True) . (< 0)) [r2, c2]  = validLines b m1 m1 p ts
+validLines b m1 (r2, c2) p (t:ts)
+      | isMoveInBounds (r2, c2) && (checkNextSquare b m1 (r2, c2) (headDirection b m1 (t:ts)) == Empty) = t : validLines b m1 m1 p ts
+      | isMoveInBounds (r2, c2) && (checkNextSquare b m1 (r2, c2) (headDirection b m1 (t:ts)) == p) = validLines b m1 m1 p ts
+      | isMoveInBounds (r2, c2) && (checkNextSquare b m1 (r2, c2) (headDirection b m1 (t:ts)) == switchPlayer p) = validLines b m1 (accumTuple m1 (snd t) (r2, c2) ) p (t:ts)
       | otherwise = validLines b m1 m1 p ts
 
 t1 = [
@@ -258,6 +272,31 @@ t1 = [
   , [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
   , [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
   ]
+
+------------------------------
+-- Select your Direction
+
+chooseDir :: Move -> Direction -> (Direction, (Int, Int))
+chooseDir m d = head $ filter ((== d).fst) (directionCoord m)
+
+-- Unsafe head
+-- Change the Filter function. Break up the function more and make simpler. 
+
+-- Don't need to use filter & take head, try `elem` which is a safe function
+
+
+accDir :: Direction -> (Int, Int)
+accDir d = snd (head (filter ((== d).fst) (directionCoord (0,0))))
+
+-- Bug with empty list error at the end. Rewrite with a countdown
+-- Function could have empty values
+getSquares :: Board -> Player -> Move -> Direction -> [Square]
+getSquares b p m d = checkSquare b m : go b p m d
+  where
+    go :: Board -> Player -> Move -> Direction -> [Square]
+    go b p (r, c) d | any ((== True) . (> _SIZE_ - 1)) [r, c] = []
+    go b p (r, c) d | any ((== True) . (< 0)) [r, c] = []
+    go b p (r, c) d = checkSquare b (snd(chooseDir (r, c) d)) : go b p (addTuple (r, c) (accDir d)) d
 
 ------------------------------
 
@@ -284,21 +323,31 @@ putSquare p b@(r:rs) m@(i, j)
 {- replaceSquare :: Player -> Board -> Move -> Board
 replaceSquare p b (r, c) =  -} 
 
--- filter ((== d).fst) zz
-playDirection :: Board -> Move -> Direction -> [(Direction, (Int, Int))] -> Board
-playDirection _ _       []          = []
-playDirection b userDir [(d, (r, c))] = filter ((== userDir).fst) [(d, (r,c))] 
 
-t2 = transpose [
+
+-- filter ((== d).fst) zz
+{- playDirection :: Board -> Move -> Direction -> [(Direction, (Int, Int))] -> Board
+playDirection _ _       []          = []
+playDirection b userDir [(d, (r, c))] = filter ((== userDir).fst) [(d, (r,c))]  -}
+
+t2 =  [
     [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
-  , [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
-  , [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
+  , [Empty, Empty, Empty, Empty, Empty, W, Empty, Empty]
+  , [Empty, Empty, Empty, Empty, W, Empty, Empty, Empty]
   , [Empty, Empty, Empty, B, W, W, W, Empty]
-  , [Empty, Empty, Empty, W, B, Empty, Empty, Empty]
-  , [Empty, Empty, Empty, W, Empty, Empty, Empty, Empty]
-  , [Empty, Empty, Empty, W, Empty, Empty, Empty, Empty]
-  , [Empty, Empty, Empty, W, Empty, Empty, Empty, Empty]
+  , [Empty, Empty, Empty, Empty, B, Empty, Empty, Empty]
+  , [Empty, Empty, Empty, B, Empty, Empty, Empty, Empty]
+  , [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
+  , [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
   ]
+
+tz = validDirections t2 (3,3) z
+
+------------------------------
+
+-- Start working on IO and bring everything together
+
+------------------------------
 
 -- Once I have Direction and Coordinate, I need to 
 
