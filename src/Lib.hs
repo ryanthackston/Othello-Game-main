@@ -207,7 +207,11 @@ checkNextBool :: Player -> Board -> Move -> Bool
 checkNextBool p b m =  notElem (switchPlayer p) (checkSquare b <$> (filterOutBounds m))
 
 validSquare :: Player -> Board -> Move -> Bool
-validSquare p b (r,c) = if (checkSquare b (r,c) /= Empty) || checkNextBool p b (r,c) then False else True  
+validSquare p b (r,c) = if (checkSquare b (r,c) /= Empty) 
+                          || checkNextBool p b (r,c) 
+                            || (filterLists (checkMove p b (r,c) dir)) == [] 
+                        then False 
+                        else True
 
 directionCoord :: [(Int, Int)]
 directionCoord = [(1, 0), (-1, -1), (0, 1), (-1, 1), (0, -1), (1, 1), (-1, 0), (1, -1)]
@@ -217,41 +221,11 @@ dir = directionCoord
 addTuple :: (Int, Int) -> (Int, Int) -> (Int, Int)
 addTuple (x1, y1) (x2, y2) = (x2+x1, y2+y1)
 
--- After checking if it's a valid square, I
+-- After checking if it's a valid square,
 -- Recursively check opposing Player Squares until hit Empty, same Player, or end of board
 
 -- Add every piece that can be changed to a list 
 
-
-{- checkMove :: Player -> Board -> Move  -> [(Int, Int)] -> [(Int, Int)]
-checkMove _ _ _     []     = []
-checkMove p b (r,c) (d:ds) = checkLine p b (r,c) d ++ checkMove p b (addTuple (r,c) d) ds
-  where
-    checkLine :: Player -> Board -> Move -> (Int, Int) -> [(Int, Int)]
-    checkLine p b (r,c) d
-      | isMoveInBounds (addTuple (r,c) d) && (checkSquare b (addTuple (r,c) d) == switchPlayer p) =  (addTuple (r,c) d): checkLine p b (addTuple (r,c) d)
-      | isMoveInBounds (addTuple (r,c) d) && (checkSquare b (addTuple (r,c) d) == p) = checkMove p b (addTuple (r,c) ds)
-      | isMoveInBounds (addTuple (r,c) d) && (checkSquare b (addTuple (r,c) d) == Empty) = (addTuple (r,c) d) : checkMove p b (addTuple (r,c) ds) -}
-
-{- checkMove :: Player -> Board -> Move  -> [(Int, Int)] ->  [(Int, Int)]
-checkMove _ _ _     []     = []
-checkMove p b (r,c) (d:ds) = checkNext p b (r,c) d 
-  where
-    checkNext :: Player -> Board -> Move -> (Int, Int) -> [(Int, Int)]
-    checkNext p b (r,c) d 
-      | isMoveInBounds (addTuple (r,c) d) && (checkSquare b (addTuple (r,c) d) == switchPlayer p) = addTuple (r,c) d : checkLine p b (addTuple (addTuple (r,c) d) d) d
-      | otherwise = checkMove p b (r,c) ds
-      where
-        checkLine :: Player -> Board -> Move -> (Int, Int) -> [(Int, Int)]
-        checkLine p b (r2,c2) d
-         | isMoveInBounds (r2,c2)  && checkSquare b (r2,c2) == switchPlayer p =  (r2,c2)  : checkLine p b (addTuple (r2,c2) d) d
-         | isMoveInBounds (addTuple (r2,c2) d) && (checkSquare b (r2,c2) == p) =  checkMove p b (r,c) ds
-         | isMoveInBounds (addTuple (r2,c2) d) && (checkSquare b (r2,c2) == Empty) = checkMove p b (r,c) ds
-         | otherwise = checkMove p b (r,c) ds -}
-
--- create sublists of piece placement lists. Invalid lists with an empty square or are out-of-bounds end with a (-1, -1) Tuple.
--- Invalid lists that don't start with opposing player piece have empty list []
--- valid squares ending with the same player square have a complete list ending with []  
 checkMove :: Player -> Board -> Move  -> [(Int, Int)] ->  [[(Int, Int)]]
 checkMove _ _ _     []     = []
 checkMove p b (r,c) (d:ds) = checkNext p b (r,c) d : checkMove p b (r,c) ds
@@ -274,8 +248,10 @@ checkMove p b (r,c) (d:ds) = checkNext p b (r,c) d : checkMove p b (r,c) ds
 filterLists :: [[(Int, Int)]] -> [(Int, Int)]
 filterLists lists = concat (filter (notElem (-1, -1)) (filter (not.null) lists))
 
-checkFilterLists :: Move -> [(Int, Int)] -> [(Int, Int)]
-checkFilterLists (r,c) list = if length list > 1 then (r,c) : list else []
+-- append move to filtered list
+moveToFL :: Move -> [(Int, Int)] -> [(Int, Int)]
+moveToFL (r,c) list = (r,c) : list
+ 
 
 replaceSquareInRow :: Player -> Int -> Row -> Row
 replaceSquareInRow p c r = xs ++ ys'
@@ -323,7 +299,7 @@ getGameState b
   | otherwise = Tie
 
 playMove :: Player -> Board -> Move -> (GameState, Board)
-playMove p b m = (getGameState(putSquares p b (filterLists (checkMove p b m dir)) ), putSquares p b (filterLists (checkMove p b m dir)))
+playMove p b m = (getGameState(putSquares p b (moveToFL m (filterLists (checkMove p b m dir))) ), putSquares p b (moveToFL m (filterLists (checkMove p b m dir))))
 
 play :: Player -> Board -> IO ()
 play p b = when _DISPLAY_LOGO_ (printLogo >>= putStrLn)  >> printBoard b >> putStrLn (promptPlayer p) >> getMove p b >>= executeMove
