@@ -7,9 +7,6 @@ import Data.Char ( toUpper, ord, isAlpha )
 import Data.List (intercalate, transpose, elemIndex)
 import Control.Concurrent (yield)
 import Data.Bifunctor (second)
-import Control.Monad (when)
-import qualified Data.Set as S
-
 
 -- Basic Functions for setting up the board
 
@@ -20,12 +17,6 @@ _SIZE_ = 8
 
 _DISPLAY_LOGO_ :: Bool
 _DISPLAY_LOGO_ = True
-
-_LOGO_PATH_ :: FilePath
-_LOGO_PATH_ = "./logo.txt"
-
-printLogo :: IO String
-printLogo = readFile _LOGO_PATH_
 
 convertRowIndex :: Char -> Int
 convertRowIndex x = fromEnum(toUpper x) - 65
@@ -184,10 +175,7 @@ isValidPiece p b (i, j) = isMoveInBounds (i, j) && go p r (i, j)
     -- recursively drops columns until the called on column is selected
     go p r (i, j)  = go p (drop 1 r) (i, j-1)
 
--- isMoveInBounds (stringToMove "a7")
--- isValidPiece B t1 (stringToMove "C3")
-
-checkSquare :: Board -> Move -> Player
+checkSquare :: Board -> Move -> Square
 checkSquare b (r, c) = boardCoord dropR (r, c)
   where
     -- drops to correct row
@@ -197,136 +185,85 @@ checkSquare b (r, c) = boardCoord dropR (r, c)
     -- recursively drops to correct column
     boardCoord dropR (r, c) = boardCoord (drop 1 dropR) (r, c-1)
 
--- Select where to place move, check if the piece is an empty square.
-validSquare :: Player -> Board -> Move -> Bool
-validSquare p b (r,c) = if checkSquare b (r,c) /= Empty then False else True  
 
-directionCoord :: [(Int, Int)]
-directionCoord = [(1, 0), (-1, -1), (0, 1), (-1, 1), (0, -1), (1, 1), (-1, 0), (1, -1)]
+-- Validate moves the piece can go. Type in N,NE,E,SE,S,SW,W,NW
+-- create seperate cases for N, NE, etc.  N (x doesn't change, y only increases)
+-- NE (when x increases, y increases)
+-- check if piece in that direction is an opposing piece, recursively check in direction that piece
+  -- is opposing piece until reaching Empty, Player piece is in way (Try again), or move is out of bounds (try again)
 
-dir = directionCoord
+data Direction = N | NE | E | SE | S | SW | We | NW deriving(Show, Eq)
+
+directionCoord :: Move -> [(Direction, (Int, Int))]
+directionCoord (i, j) = zipWith (,) [S, SE, E, NE, N, NW, We, SW] [(i+1, j), (i-1, j-1), (i, j+1), (i-1, j+1), (i, j-1), (i+1, j+1), (i-1, j), (i+1, j-1)]
+
+{- directionCoord :: Move -> [(Direction, (Int, Int))]
+directionCoord (i, j) = zipWith (,) [S, SE, E, NE, N, NW, We, SW] [(i+1, j), (i-1, j-1), (i, j+1), (i+1, j-1), (i, j-1), (i+1, j+1), (i-1, j), (i-1, j+1)]
+ -}
+idDirCoord :: [(Direction, (Int, Int))]
+idDirCoord = directionCoord (0,0)
+
+z = directionCoord (3,3)
+
+{- nextToOppPlayer :: Board -> Move -> [(Direction, (Int, Int))]
+
+nextToOppPlayer b m = <*> (directionCoord m)  -}
+-- ismoveInBounds && checkOppPlayer && checkDirection (Checks for empty, oppPlayer recursively, or samePlayer)
+
+-- Need function to check opposing player is next player piece in specified direction 
+
+minusTuple :: (Int, Int) -> (Int, Int) -> (Int, Int)
+minusTuple (x1, y1) (x2, y2) = (x2-x1, y2-y1)
 
 addTuple :: (Int, Int) -> (Int, Int) -> (Int, Int)
 addTuple (x1, y1) (x2, y2) = (x2+x1, y2+y1)
 
--- After checking if it's a valid square, I
--- Recursively check opposing Player Squares until hit Empty, same Player, or end of board
+accumTuple :: Move -> (Int, Int) -> (Int, Int) -> (Int, Int)
+accumTuple (x1, y1) (x2, y2) (x3, y3)= addTuple (x3, y3) (minusTuple (x1, y1) (x2, y2))
 
--- Add every piece that can be changed to a list 
+-- second is the same as fmap or bimap. 
+-- fmap applied to the coordinates
 
+-- Select a coordinate and check directions that have an opposing player piece right next to it
+validDirections :: Board -> Move -> [(Direction, (Int, Int))] -> [(Direction, (Int, Int))]
+validDirections _ _ []     = []
+validDirections b m (t:ts) = if checkSquare b (snd t) == switchPlayer (checkSquare b m) then t : validDirections b m ts else validDirections b m ts
 
-{- checkMove :: Player -> Board -> Move  -> [(Int, Int)] -> [(Int, Int)]
-checkMove _ _ _     []     = []
-checkMove p b (r,c) (d:ds) = checkLine p b (r,c) d ++ checkMove p b (addTuple (r,c) d) ds
-  where
-    checkLine :: Player -> Board -> Move -> (Int, Int) -> [(Int, Int)]
-    checkLine p b (r,c) d
-      | isMoveInBounds (addTuple (r,c) d) && (checkSquare b (addTuple (r,c) d) == switchPlayer p) =  (addTuple (r,c) d): checkLine p b (addTuple (r,c) d)
-      | isMoveInBounds (addTuple (r,c) d) && (checkSquare b (addTuple (r,c) d) == p) = checkMove p b (addTuple (r,c) ds)
-      | isMoveInBounds (addTuple (r,c) d) && (checkSquare b (addTuple (r,c) d) == Empty) = (addTuple (r,c) d) : checkMove p b (addTuple (r,c) ds) -}
+-- Checks the next coordinate in the direction taken
+checkNextSquare :: Board -> Move -> (Int, Int) -> (Direction, (Int, Int)) -> Square
+checkNextSquare _ (r1,c1) (r2, c2) _ | any (> _SIZE_ - 1) [r1, c1, r2, c2]  = error "Out of Bounds"
+checkNextSquare _ (r1,c1) (r2, c2) _ | any (< 0) [r1, c1, r2, c2]  = error "Out of Bounds"
+checkNextSquare b m1 (r2, c2) _ | elem (_SIZE_ -1 ) [r2, c2]  = checkSquare b (r2, c2)
+checkNextSquare b m1 m2 t   = checkSquare b (accumTuple m1 (snd t) m2)
 
-{- checkMove :: Player -> Board -> Move  -> [(Int, Int)] ->  [(Int, Int)]
-checkMove _ _ _     []     = []
-checkMove p b (r,c) (d:ds) = checkNext p b (r,c) d 
-  where
-    checkNext :: Player -> Board -> Move -> (Int, Int) -> [(Int, Int)]
-    checkNext p b (r,c) d 
-      | isMoveInBounds (addTuple (r,c) d) && (checkSquare b (addTuple (r,c) d) == switchPlayer p) = addTuple (r,c) d : checkLine p b (addTuple (addTuple (r,c) d) d) d
-      | otherwise = checkMove p b (r,c) ds
-      where
-        checkLine :: Player -> Board -> Move -> (Int, Int) -> [(Int, Int)]
-        checkLine p b (r2,c2) d
-         | isMoveInBounds (r2,c2)  && checkSquare b (r2,c2) == switchPlayer p =  (r2,c2)  : checkLine p b (addTuple (r2,c2) d) d
-         | isMoveInBounds (addTuple (r2,c2) d) && (checkSquare b (r2,c2) == p) =  checkMove p b (r,c) ds
-         | isMoveInBounds (addTuple (r2,c2) d) && (checkSquare b (r2,c2) == Empty) = checkMove p b (r,c) ds
-         | otherwise = checkMove p b (r,c) ds -}
+-- Maybe Function
+headDirection :: Board -> Move -> [(Direction, (Int, Int))] -> (Direction, (Int, Int))
+headDirection _ _ []     = error "This is an empty list"
+headDirection b m (t:ts) = head (validDirections b m (t:ts))
 
--- create sublists of piece placement lists. Invalid lists with an empty square or are out-of-bounds end with a (-1, -1) Tuple.
--- Invalid lists that don't start with opposing player piece have empty list []
--- valid squares ending with the same player square have a complete list ending with []  
-checkMove :: Player -> Board -> Move  -> [(Int, Int)] ->  [[(Int, Int)]]
-checkMove _ _ _     []     = []
-checkMove p b (r,c) (d:ds) = checkNext p b (r,c) d : checkMove p b (r,c) ds
-  where
-    checkNext :: Player -> Board -> Move -> (Int, Int) -> [(Int, Int)]
-    checkNext p b (r,c) d 
-      | isMoveInBounds (addTuple (r,c) d) && (checkSquare b (addTuple (r,c) d) == switchPlayer p) = addTuple (r,c) d : checkLine p b (addTuple (addTuple (r,c) d) d) d
-      | otherwise = []
-      where
-        checkLine :: Player -> Board -> Move -> (Int, Int) -> [(Int, Int)]
-        checkLine p b (r2,c2) d
-          | isMoveInBounds (r2,c2)  && checkSquare b (r2,c2) == switchPlayer p =  (r2,c2)  : checkLine p b (addTuple (r2,c2) d) d
-          | isMoveInBounds (addTuple (r2,c2) d) && (checkSquare b (r2,c2) == p) =  []
-          | isMoveInBounds (addTuple (r2,c2) d) && (checkSquare b (r2,c2) == Empty) = [(-1,-1)]
-          | otherwise = [(-1,-1)]
+accumDirection :: Move -> (Int, Int) -> (Direction, (Int, Int)) -> Move
+accumDirection m1 m2 t = accumTuple m1 (snd t) m2 
 
--- Filter out lists with (-1, -1) tuple in list and empty lists [].
--- concatenate inital move and lists together into one list.
-filterLists :: Move -> [[(Int, Int)]] -> [(Int, Int)]
-filterLists (r,c) lists = (r,c) : concat (filter (notElem (-1, -1)) (filter (not.null) lists))
+-- Need to fix the exception, rewrite the function...
+-- Use after validDirection, checks for lines that have a continuing opposing player
+-- in the selected direction and ends with an empty square. If a square of the same player shows up
+-- that direction is invalid.
 
-replaceSquareInRow :: Player -> Int -> Row -> Row
-replaceSquareInRow p c r = xs ++ ys'
-  where
-    (xs, ys) = splitAt c r
-    ys'
-      | null ys = []
-      | c < 0     = ys
-      | otherwise = p : tail ys
-
--- Player pieces added to valid piece squares
-putSquare :: Player -> Board -> Move -> Board
-putSquare _ [] _ = []
-putSquare p (r:rs) (0, j) = let r' = replaceSquareInRow p j r in r':rs
-putSquare p b@(r:rs) m@(i, j)
-  | i > 0 = r : putSquare p rs (i-1, j)
-  | otherwise = b
-
-putSquares :: Player -> Board -> [Move] -> Board 
-putSquares _ b []     = b
-putSquares p b (m:ms) = putSquares p (putSquare p b m) ms
-
--------
-
--- Make IO Code to play
-
-getMove :: Player -> Board -> IO Move
-getMove p b = getLine >>= worker . stringToMove
-    where
-        worker :: Move -> IO Move
-        worker m = if validSquare p b m
-                      then return m
-                      else putStrLn "Invalid move! Try again" >> getMove p b
-
-
-countSquares :: Board -> (Int, Int)
-countSquares b = (length $ filter (== W) (concat b), length $ filter (== B) (concat b))
-
-getGameState :: Board -> GameState
-getGameState b
-  | uncurry (>) (countSquares t1) = WWon
-  | uncurry (<) (countSquares t1) = BWon
-  -- Any empty tile means game in progress
-  | elem Empty (concat b) = InProgress
-  | otherwise = Tie
-
-{- playMove :: Board -> Player -> Move -> (GameState, Board)
-playMove b p m = (getGameState(putSquares p b (filterLists m (checkMove p b m dir)) ), putSquares p b (filterLists m (checkMove p b m dir)))
-
-play :: Player -> Board -> IO ()
-play b p = when _DISPLAY_LOGO_ (printLogo >>= putStrLn)  >> printBoard b >> putStrLn (promptPlayer p) >> getMove p b >>= executeMove
-    where
-        executeMove :: Move -> IO ()
-        executeMove m = let (newState, newBoard) = playMove p b m
-            in case newState of
-                InProgress -> play newBoard (switchPlayer p)
-                _ -> printBoard newBoard >> putStrLn (showGameState newState) -}
-
+-- Write a helper function in the guards
+-- Use Worker-wrapper for the extra move function
+validLines :: Board -> Move -> (Int, Int) -> Player -> [(Direction, (Int, Int))] -> [(Direction, (Int,Int))]
+validLines _ _  _  _ [] = []
+validLines b m1 (r2, c2) p (t:ts) | any (> _SIZE_ - 1) [r2, c2] ||  any (< 0) [r2, c2]  = validLines b m1 m1 p ts
+validLines b m1 (r2, c2) p (t:ts)
+      | isMoveInBounds (r2, c2) && (checkNextSquare b m1 (r2, c2) (headDirection b m1 (t:ts)) == Empty) = t : validLines b m1 m1 p ts
+      | isMoveInBounds (r2, c2) && (checkNextSquare b m1 (r2, c2) (headDirection b m1 (t:ts)) == p) = validLines b m1 m1 p ts
+      | isMoveInBounds (r2, c2) && (checkNextSquare b m1 (r2, c2) (headDirection b m1 (t:ts)) == switchPlayer p) = validLines b m1 (accumTuple m1 (snd t) (r2, c2) ) p (t:ts)
+      | otherwise = validLines b m1 m1 p ts
 
 t1 = [
     [W, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
   , [Empty, W, Empty, B, Empty, W, Empty, Empty]
-  , [Empty, Empty, W, B, W, W, Empty, Empty]
+  , [Empty, Empty, W, B, W, Empty, Empty, Empty]
   , [Empty, Empty, Empty, B, W, W, W, Empty]
   , [Empty, Empty, Empty, W, B, Empty, Empty, Empty]
   , [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
@@ -334,7 +271,7 @@ t1 = [
   , [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
   ]
 
-{- ------------------------------
+------------------------------
 -- Select your Direction
 
 -- safeHead 
@@ -431,4 +368,4 @@ getMove b = getLine >>= worker . stringToMove
         worker m = if isValidMove b m
                       then return m
                       else putStrLn "Invalid move! Try again" >> getMove b
- -} -}
+ -}
