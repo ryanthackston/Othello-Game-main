@@ -151,7 +151,7 @@ printBoard b = putStrLn $ formatBoard b
 
 promptPlayer :: Player -> String
 promptPlayer Empty = "No player's turn"
-promptPlayer p = concat ["Player ", show(p), "'s turn: enter a row and column position " ]
+promptPlayer p = concat ["Player ", show(p), "'s turn: enter a row and column position (letter and number)" ]
 
 ------------------------------
 
@@ -198,8 +198,16 @@ checkSquare b (r, c) = boardCoord dropR (r, c)
     boardCoord dropR (r, c) = boardCoord (drop 1 dropR) (r, c-1)
 
 -- Select where to place move, check if the piece is an empty square.
+
+filterOutBounds :: Move -> [Move]
+filterOutBounds m = map snd (filter ((== True) . fst) (zip (isMoveInBounds <$> (addTuple m <$> dir)) (addTuple m <$> dir)))
+
+-- Check if there's an opposing piece next to the selected coordinate
+checkNextBool :: Player -> Board -> Move -> Bool
+checkNextBool p b m =  notElem (switchPlayer p) (checkSquare b <$> (filterOutBounds m))
+
 validSquare :: Player -> Board -> Move -> Bool
-validSquare p b (r,c) = if checkSquare b (r,c) /= Empty then False else True  
+validSquare p b (r,c) = if (checkSquare b (r,c) /= Empty) || checkNextBool p b (r,c) then False else True  
 
 directionCoord :: [(Int, Int)]
 directionCoord = [(1, 0), (-1, -1), (0, 1), (-1, 1), (0, -1), (1, 1), (-1, 0), (1, -1)]
@@ -262,8 +270,12 @@ checkMove p b (r,c) (d:ds) = checkNext p b (r,c) d : checkMove p b (r,c) ds
 
 -- Filter out lists with (-1, -1) tuple in list and empty lists [].
 -- concatenate inital move and lists together into one list.
-filterLists :: Move -> [[(Int, Int)]] -> [(Int, Int)]
-filterLists (r,c) lists = (r,c) : concat (filter (notElem (-1, -1)) (filter (not.null) lists))
+-- test = checkMove B t1 (2,6) dir
+filterLists :: [[(Int, Int)]] -> [(Int, Int)]
+filterLists lists = concat (filter (notElem (-1, -1)) (filter (not.null) lists))
+
+checkFilterLists :: Move -> [(Int, Int)] -> [(Int, Int)]
+checkFilterLists (r,c) list = if length list > 1 then (r,c) : list else []
 
 replaceSquareInRow :: Player -> Int -> Row -> Row
 replaceSquareInRow p c r = xs ++ ys'
@@ -304,23 +316,23 @@ countSquares b = (length $ filter (== W) (concat b), length $ filter (== B) (con
 
 getGameState :: Board -> GameState
 getGameState b
-  | uncurry (>) (countSquares t1) = WWon
-  | uncurry (<) (countSquares t1) = BWon
   -- Any empty tile means game in progress
   | elem Empty (concat b) = InProgress
+  | uncurry (>) (countSquares t1) = WWon
+  | uncurry (<) (countSquares t1) = BWon
   | otherwise = Tie
 
-{- playMove :: Board -> Player -> Move -> (GameState, Board)
-playMove b p m = (getGameState(putSquares p b (filterLists m (checkMove p b m dir)) ), putSquares p b (filterLists m (checkMove p b m dir)))
+playMove :: Player -> Board -> Move -> (GameState, Board)
+playMove p b m = (getGameState(putSquares p b (filterLists (checkMove p b m dir)) ), putSquares p b (filterLists (checkMove p b m dir)))
 
 play :: Player -> Board -> IO ()
-play b p = when _DISPLAY_LOGO_ (printLogo >>= putStrLn)  >> printBoard b >> putStrLn (promptPlayer p) >> getMove p b >>= executeMove
+play p b = when _DISPLAY_LOGO_ (printLogo >>= putStrLn)  >> printBoard b >> putStrLn (promptPlayer p) >> getMove p b >>= executeMove
     where
         executeMove :: Move -> IO ()
         executeMove m = let (newState, newBoard) = playMove p b m
             in case newState of
-                InProgress -> play newBoard (switchPlayer p)
-                _ -> printBoard newBoard >> putStrLn (showGameState newState) -}
+                InProgress -> play (switchPlayer p) newBoard
+                _ -> printBoard newBoard >> putStrLn (showGameState newState)
 
 
 t1 = [
@@ -333,102 +345,3 @@ t1 = [
   , [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
   , [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
   ]
-
-{- ------------------------------
--- Select your Direction
-
--- safeHead 
-chooseDir :: Move -> Direction -> (Direction, (Int, Int))
-chooseDir m d = head $ filter ((== d).fst) (directionCoord m)
-
--- Unsafe head
--- Change the Filter function. Break up the function more and make simpler.
--- fmap (elem S) fst(unzip(directionCoord (0,0))) 
-
--- Don't need to use filter & take head, try `elem` which is a safe function
-
-accDir :: Direction -> (Int, Int)
-accDir d = snd (head (filter ((== d).fst) (directionCoord (0,0))))
-
--- Bug with empty list error at the end. Rewrite with a countdown
--- Function could have empty values
-getSquares :: Board -> Player -> Move -> Direction -> [Square]
-getSquares b p m d = checkSquare b m : go b p m d
-  where
-    go :: Board -> Player -> Move -> Direction -> [Square]
-    go b p (r, c) d | any (> _SIZE_ - 1) [r, c] = []
-    go b p (r, c) d | any (< 0) [r, c] = []
-    go b p (r, c) d = checkSquare b (snd(chooseDir (r, c) d)) : go b p (addTuple (r, c) (accDir d)) d
-
-------------------------------
-
--- Replace pieces in Selected Direction
-
-replaceSquareInRow :: Player -> Int -> Row -> Row
-replaceSquareInRow p c r = xs ++ ys'
-  where
-    (xs, ys) = splitAt c r
-    ys'
-      | null ys = []
-      | c < 0     = ys
-      | otherwise = p : tail ys
-
-putSquare :: Player -> Board -> Move -> Board
-putSquare _ [] _ = []
-putSquare p (r:rs) (0, j) = let r' = replaceSquareInRow p j r in r':rs
-putSquare p b@(r:rs) m@(i, j)
-  | i > 0 = r : putSquare p rs (i-1, j)
-  | otherwise = b
-
-{- replaceSquare :: Player -> Board -> Move -> Board
-replaceSquare p b (r, c) =  -} 
-
--- filter ((== d).fst) zz
-{- playDirection :: Board -> Move -> Direction -> [(Direction, (Int, Int))] -> Board
-playDirection _ _       []          = []
-playDirection b userDir [(d, (r, c))] = filter ((== userDir).fst) [(d, (r,c))]  -}
-
-t2 =  [
-    [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
-  , [Empty, Empty, Empty, Empty, Empty, W, Empty, Empty]
-  , [Empty, Empty, Empty, Empty, W, Empty, Empty, Empty]
-  , [Empty, Empty, Empty, B, W, W, W, Empty]
-  , [Empty, Empty, Empty, Empty, B, Empty, Empty, Empty]
-  , [Empty, Empty, Empty, B, Empty, Empty, Empty, Empty]
-  , [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
-  , [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
-  ]
-
-tz = validDirections t2 (3,3) z
-
-------------------------------
-
--- Start working on IO and bring everything together
-
-------------------------------
-
--- Once I have Direction and Coordinate, I need to 
-
--- putSquare each 
-
-
--- Check for Empty Square in chosen direction
--- checkForEmpty :: [(Direction, (Int, Int))] -> [(Direction, (Int, Int))]
-
-{- checkDirection :: Player -> Board -> Move -> Direction -> Bool
-checkDirection p (i,j) d = (isValidPiece p b (i,j)) && (go p (i,j) d) 
-  where
-    go :: Player -> Move -> Direction -> Bool
-    go = case d of
-    N = if (i, j+1) == (switchPlayer p) then checkDirection p (i,j+1) N elsif (i, j+1) == p then False elseif (i, j+1) == Empty then True
- -}
-
--- 
-{- getMove :: Board -> IO Move
-getMove b = getLine >>= worker . stringToMove
-    where
-        worker :: Move -> IO Move
-        worker m = if isValidMove b m
-                      then return m
-                      else putStrLn "Invalid move! Try again" >> getMove b
- -} -}
