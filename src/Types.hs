@@ -1,5 +1,9 @@
 module Types where
 
+-- To play game:
+-- cabal repl
+-- play W _NEW_BOARD_
+
 data Square = B | W | Empty deriving(Show, Eq)
 
 data GameState = BWon | WWon | Tie | InProgress deriving Show

@@ -1,18 +1,18 @@
 module Lib where
-
 import Types
-import Actions
-
 import Data.Char ( toUpper, ord, isAlpha )
 import Data.List (intercalate, transpose, elemIndex)
 import Control.Concurrent (yield)
 import Data.Bifunctor (second)
-import Control.Monad (when)
 import qualified Data.Set as S
 
+-- To play game:
+-- cabal repl
+-- play W _NEW_BOARD_
+
+-------------------------------------------
 
 -- Basic Functions for setting up the board
-
 -- 8x8 size board
 
 _SIZE_ :: Int
@@ -54,7 +54,6 @@ _EMPTY_BOARD_ = replicate _SIZE_ _EMPTY_ROW_
 
 e = _EMPTY_BOARD_
 
-
 getFirstPlayer :: Bool -> Player
 getFirstPlayer bool
     | True  = B
@@ -85,7 +84,6 @@ isDigit c = c `elem` ['0' .. '9']
 readDigit :: Char -> Int
 readDigit c = if isDigit c then read [c] else -1
 
-
 isTied :: Board -> Bool
 isTied b = Empty `notElem` concat b
 
@@ -114,6 +112,17 @@ _TIED_BOARD_ = [
   ]
 
 t = _TIED_BOARD_
+
+t1 = [
+    [W, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
+  , [Empty, W, Empty, B, Empty, W, Empty, Empty]
+  , [Empty, Empty, W, B, W, W, Empty, Empty]
+  , [Empty, Empty, Empty, B, W, W, W, Empty]
+  , [Empty, Empty, Empty, W, B, Empty, Empty, Empty]
+  , [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
+  , [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
+  , [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
+  ]
 
 indexRowStrings :: [String] -> [(Char,String)]
 indexRowStrings []  = []
@@ -146,14 +155,14 @@ formatBoard b = unlines(_HEADER_ : prependRowIndices(formatRows b))
 printBoard :: Board -> IO ()
 printBoard b = putStrLn $ formatBoard b
 
-------------------------------
+-------------------------------------------
 -- Prompt the players turn
 
 promptPlayer :: Player -> String
 promptPlayer Empty = "No player's turn"
 promptPlayer p = concat ["Player ", show(p), "'s turn: enter a row and column position (letter and number)" ]
 
-------------------------------
+-------------------------------------------
 
 -- Select a piece with Coordinates
 
@@ -173,20 +182,6 @@ isMoveInBounds (x, y) = checkX && checkY
     checkX = (x >= 0) && (x < _SIZE_)
     checkY = (y >= 0) && (y < _SIZE_)
 
-isValidPiece :: Player -> Board -> Move -> Bool
-isValidPiece p b (i, j) = isMoveInBounds (i, j) && go p r (i, j)
-  where
-    go :: Player -> [Square] -> Move -> Bool
-    -- calls on the specific row
-    r =  head( drop i b)
-    -- if the current column is Empty then it is a valid move
-    go p r (i, 0) = head r == p
-    -- recursively drops columns until the called on column is selected
-    go p r (i, j)  = go p (drop 1 r) (i, j-1)
-
--- isMoveInBounds (stringToMove "a7")
--- isValidPiece B t1 (stringToMove "C3")
-
 checkSquare :: Board -> Move -> Player
 checkSquare b (r, c) = boardCoord dropR (r, c)
   where
@@ -199,20 +194,6 @@ checkSquare b (r, c) = boardCoord dropR (r, c)
 
 -- Select where to place move, check if the piece is an empty square.
 
-filterOutBounds :: Move -> [Move]
-filterOutBounds m = map snd (filter ((== True) . fst) (zip (isMoveInBounds <$> (addTuple m <$> dir)) (addTuple m <$> dir)))
-
--- Check if there's an opposing piece next to the selected coordinate
-checkNextBool :: Player -> Board -> Move -> Bool
-checkNextBool p b m =  notElem (switchPlayer p) (checkSquare b <$> (filterOutBounds m))
-
-validSquare :: Player -> Board -> Move -> Bool
-validSquare p b (r,c) = if (checkSquare b (r,c) /= Empty) 
-                          || checkNextBool p b (r,c) 
-                            || (filterLists (checkMove p b (r,c) dir)) == [] 
-                        then False 
-                        else True
-
 directionCoord :: [(Int, Int)]
 directionCoord = [(1, 0), (-1, -1), (0, 1), (-1, 1), (0, -1), (1, 1), (-1, 0), (1, -1)]
 
@@ -221,10 +202,8 @@ dir = directionCoord
 addTuple :: (Int, Int) -> (Int, Int) -> (Int, Int)
 addTuple (x1, y1) (x2, y2) = (x2+x1, y2+y1)
 
--- After checking if it's a valid square,
 -- Recursively check opposing Player Squares until hit Empty, same Player, or end of board
-
--- Add every piece that can be changed to a list 
+-- Add every square that can be changed to a list 
 
 checkMove :: Player -> Board -> Move  -> [(Int, Int)] ->  [[(Int, Int)]]
 checkMove _ _ _     []     = []
@@ -248,11 +227,25 @@ checkMove p b (r,c) (d:ds) = checkNext p b (r,c) d : checkMove p b (r,c) ds
 filterLists :: [[(Int, Int)]] -> [(Int, Int)]
 filterLists lists = concat (filter (notElem (-1, -1)) (filter (not.null) lists))
 
--- append move to filtered list
+filterOutBounds :: Move -> [Move]
+filterOutBounds m = map snd (filter ((== True) . fst) (zip (isMoveInBounds <$> (addTuple m <$> dir)) (addTuple m <$> dir)))
+
+-- Check if there's an opposing piece next to the selected coordinate
+checkNextBool :: Player -> Board -> Move -> Bool
+checkNextBool p b m =  notElem (switchPlayer p) (checkSquare b <$> (filterOutBounds m))
+
+-- Check if you have a valid square to play a move
+validSquare :: Player -> Board -> Move -> Bool
+validSquare p b (r,c) = if (checkSquare b (r,c) /= Empty) 
+                          || checkNextBool p b (r,c) 
+                            || (filterLists (checkMove p b (r,c) dir)) == [] 
+                        then False 
+                        else True
+
+-- Append selected move to the filtered list
 moveToFL :: Move -> [(Int, Int)] -> [(Int, Int)]
 moveToFL (r,c) list = (r,c) : list
  
-
 replaceSquareInRow :: Player -> Int -> Row -> Row
 replaceSquareInRow p c r = xs ++ ys'
   where
@@ -273,51 +266,3 @@ putSquare p b@(r:rs) m@(i, j)
 putSquares :: Player -> Board -> [Move] -> Board 
 putSquares _ b []     = b
 putSquares p b (m:ms) = putSquares p (putSquare p b m) ms
-
--------
-
--- Make IO Code to play
-
-getMove :: Player -> Board -> IO Move
-getMove p b = getLine >>= worker . stringToMove
-    where
-        worker :: Move -> IO Move
-        worker m = if validSquare p b m
-                      then return m
-                      else putStrLn "Invalid move! Try again" >> getMove p b
-
-
-countSquares :: Board -> (Int, Int)
-countSquares b = (length $ filter (== W) (concat b), length $ filter (== B) (concat b))
-
-getGameState :: Board -> GameState
-getGameState b
-  -- Any empty tile means game in progress
-  | elem Empty (concat b) = InProgress
-  | uncurry (>) (countSquares t1) = WWon
-  | uncurry (<) (countSquares t1) = BWon
-  | otherwise = Tie
-
-playMove :: Player -> Board -> Move -> (GameState, Board)
-playMove p b m = (getGameState(putSquares p b (moveToFL m (filterLists (checkMove p b m dir))) ), putSquares p b (moveToFL m (filterLists (checkMove p b m dir))))
-
-play :: Player -> Board -> IO ()
-play p b = when _DISPLAY_LOGO_ (printLogo >>= putStrLn)  >> printBoard b >> putStrLn (promptPlayer p) >> getMove p b >>= executeMove
-    where
-        executeMove :: Move -> IO ()
-        executeMove m = let (newState, newBoard) = playMove p b m
-            in case newState of
-                InProgress -> play (switchPlayer p) newBoard
-                _ -> printBoard newBoard >> putStrLn (showGameState newState)
-
-
-t1 = [
-    [W, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
-  , [Empty, W, Empty, B, Empty, W, Empty, Empty]
-  , [Empty, Empty, W, B, W, W, Empty, Empty]
-  , [Empty, Empty, Empty, B, W, W, W, Empty]
-  , [Empty, Empty, Empty, W, B, Empty, Empty, Empty]
-  , [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
-  , [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
-  , [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty]
-  ]
