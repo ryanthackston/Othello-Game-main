@@ -1,4 +1,13 @@
-# EMURGO Academy Haskell Course: Solo Project
+# Reversi Game
+
+Download files, navigate to Othello-Game-main and run `cabal repl` to play. 
+
+Use GHCup and set GHC to 8.10.7
+
+    build-depends:
+        base ^>=4.14.1.0
+      , containers ^>= 0.6.5.1
+      , random ^>= 1.2.1.1
 
 This repository contains a preconfigured Haskell development environment, allowing you to start coding in Haskell with zero installation using [Gitpod](https://www.gitpod.io/) and a browser-based version of VS Code.
 
